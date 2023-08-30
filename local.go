@@ -1,9 +1,9 @@
 package main
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/mailway-app/config"
 
@@ -13,24 +13,28 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func fileExists(filename string) bool {
-	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
-	}
-	if info == nil {
-		return false
-	}
-	return !info.IsDir()
-}
-
 func getDomainConfigFile(domain string) string {
-	return path.Join(config.ROOT_LOCATION, "domain.d", domain+".yaml")
+	originConfigFilePath := path.Join(config.ROOT_LOCATION, "domain.d", domain+".yaml")
+	_, err := os.Stat(originConfigFilePath)
+	if err != nil {
+		return originConfigFilePath
+	}
+
+	entries, err := os.ReadDir(path.Join(config.ROOT_LOCATION, "domain.d"))
+	if err != nil {
+		return ""
+	}
+	for _, e := range entries {
+		if strings.HasSuffix(domain+".yaml", e.Name()) {
+			return path.Join(config.ROOT_LOCATION, "domain.d", e.Name())
+		}
+	}
+	return ""
 }
 
 func getLocalDomainConfig(instance *config.Config, domain string) (*Domain, error) {
 	status := DOMAIN_UNCOMPLETE
-	if fileExists(getDomainConfigFile(domain)) {
+	if getDomainConfigFile(domain) != "" {
 		status = DOMAIN_ACTIVE
 	} else {
 		log.Warnf("No configuration for domain %s not found", domain)
@@ -45,7 +49,7 @@ func getLocalDomainRules(instance *config.Config, domain string) (DomainRules, e
 	config := DomainRules{}
 
 	file := getDomainConfigFile(domain)
-	content, err := ioutil.ReadFile(file)
+	content, err := os.ReadFile(file)
 	if err != nil {
 		return config, errors.Wrap(err, "could not read domain config")
 	}
